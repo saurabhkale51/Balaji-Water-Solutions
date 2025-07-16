@@ -1,4 +1,3 @@
-// App.js
 import { StyleSheet } from 'react-native';
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
@@ -8,8 +7,7 @@ import Home from './src/Screens/Home';
 import Login from './src/Screens/Login';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Customer from './src/Screens/Customer';
-import Orders from './src/Screens/Orders';
-import Items from './src/Screens/Items';
+import Orders from './src/Screens/orders/Orders';
 
 import Icon from 'react-native-vector-icons/FontAwesome5';
 
@@ -23,40 +21,39 @@ const MainApp = () => {
       tabBarActiveTintColor: 'orange',
       tabBarInactiveTintColor: 'black',
       tabBarLabelStyle: {
-        fontSize: 19
-      }
+        fontSize: 16,
+        fontWeight: 'bold',
+      },
+      tabBarStyle: {
+        backgroundColor: '#fff',
+        height: 59,
+      },
     }}>
       <Tab.Screen
         name='Home'
         component={Home}
         options={{
-          tabBarIcon: ({ color }) => <Icon name="home" size={22} color={color} />
+          tabBarIcon: ({ color }) => <Icon name="home" size={20} color={color} />
         }}
       />
-      <Tab.Screen name='Customer'
+      <Tab.Screen
+        name='Customer'
         component={Customer}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Icon name="users" size={size} color={color} />
+            <Icon name="users" size={20} color={color} />
           ),
         }}
       />
-      <Tab.Screen name='Orders'
+      <Tab.Screen
+        name='Orders'
         component={Orders}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <Icon name="shopping-cart" size={size} color={color} />
+            <Icon name="shopping-cart" size={20} color={color} />
           ),
         }}
       />
-      {/* <Tab.Screen name='Items'
-        component={Items}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="box" size={size} color={color} />
-          ),
-        }}
-      /> */}
     </Tab.Navigator>
   )
 }
@@ -75,5 +72,4 @@ const App = () => {
 };
 
 export default App;
-
 const styles = StyleSheet.create({});
