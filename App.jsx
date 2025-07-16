@@ -64,7 +64,7 @@ const MainApp = () => {
 const App = () => {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Login"
+      <Stack.Navigator initialRouteName="MainApp"
         screenOptions={{ title: 'Balaji Water Solutions' }}
       >
         <Stack.Screen name="Login" component={Login} />
