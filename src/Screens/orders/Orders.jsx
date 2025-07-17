@@ -12,11 +12,12 @@ import {
 import React, { useState, useEffect } from 'react';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { Picker } from '@react-native-picker/picker';
+import { baseUrl } from '../../baseUrl';
 
 
 const Order = () => {
   const [modalVisible, setModalVisible] = useState(false);
-  const [posts, setPosts] = useState([]);
+  const [order, setOrder] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchId, setSearchId] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -29,7 +30,7 @@ const Order = () => {
   useEffect(() => {
 
     setLoading(true);
-    fetch('https://onlinetradings.in/batla-backend/public/api/orders', {
+    fetch(`${baseUrl}/orders`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -38,12 +39,12 @@ const Order = () => {
     })
       .then((res) => res.json())
       .then((data) => {
-        setPosts(data.data || []);
+        setOrder(data.data || []);
       })
       .catch((error) => console.error('App Error:', error))
       .finally(() => setLoading(false));
 
-    fetch('https://onlinetradings.in/batla-backend/public/api/customers', {
+    fetch(`${baseUrl}/customers`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -61,7 +62,7 @@ const Order = () => {
 
   const initialFormData = {
     Customer: '',
-    date: getTodayDate(),
+    date: '',
     Items: '',
     Quantity: '1',
     Price: '25',
@@ -80,11 +81,37 @@ const Order = () => {
   };
 
   const handleReset = () => {
-    setFormData(initialFormData);
+    setFormData({
+      Customer: '',
+      date: formData.date,
+      'Total Amount': '',
+      'Paid Amount': '',
+      'Discount': '',
+      'Unpaid Amount': '',
+      Description: '',
+    });
+    setItems([{ item: '', quantity: '', price: '25' }]);
   };
 
   const handleSubmit = () => {
-    fetch('https://onlinetradings.in/batla-backend/public/api/orders', {
+    if (!formData.Customer) {
+      alert('Please select a customer.');
+      return;
+    }
+
+    const isValidItems = items.every(item => item.item && item.quantity && parseInt(item.quantity) > 0);
+    if (!isValidItems) {
+      alert('Please select valid items with quantity.');
+      return;
+    }
+
+    const formattedItems = items.map((item) => ({
+      item: item.item,
+      quantity: parseInt(item.quantity),
+      price: 25,
+    }));
+
+    fetch(`${baseUrl}/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -92,9 +119,7 @@ const Order = () => {
       },
       body: JSON.stringify({
         customer: formData.Customer,
-        items: formData.Items,
-        quantity: formData.Quantity,
-        price: formData.Price,
+        items: formattedItems,
         total_amount: formData['Total Amount'],
         paid_amount: formData['Paid Amount'],
         discount: formData.Discount,
@@ -116,8 +141,9 @@ const Order = () => {
           paid_amount: formData['Paid Amount'],
           unpaid_amount: formData['Unpaid Amount'],
         };
-        setPosts([newOrder, ...posts]);
+        setOrder([newOrder, ...order]);
         setFormData(initialFormData);
+        setItems([{ item: '', quantity: '' }]);
         setCurrentPage(1);
         setModalVisible(false);
       })
@@ -127,9 +153,42 @@ const Order = () => {
       });
   };
 
+
+  const calculateTotals = (updatedItems = items, form = formData) => {
+    let total = 0;
+    updatedItems.forEach((item) => {
+      const qty = parseInt(item.quantity) || 0;
+      const price = 25;
+      total += qty * price;
+    });
+
+    const paid = parseInt(form['Paid Amount']) || 0;
+    const discount = parseInt(form['Discount']) || 0;
+    const unpaid = total - paid - discount;
+
+    setFormData((prev) => ({
+      ...prev,
+      'Total Amount': total.toString(),
+      'Unpaid Amount': unpaid >= 0 ? unpaid.toString() : '0',
+    }));
+  };
+
+  const handleItemChange = (index, field, value) => {
+    const updatedItems = [...items];
+    updatedItems[index][field] = value;
+    setItems(updatedItems);
+    calculateTotals(updatedItems);
+  };
+
+  const handleChangeCalucaltion = (field, value) => {
+    const updatedForm = { ...formData, [field]: value };
+    setFormData(updatedForm);
+    calculateTotals(items, updatedForm);
+  };
+
   useEffect(() => {
     setLoading(true);
-    fetch('https://onlinetradings.in/batla-backend/public/api/orders', {
+    fetch(`${baseUrl}/orders`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -138,13 +197,13 @@ const Order = () => {
     })
       .then((res) => res.json())
       .then((data) => {
-        setPosts(data.data || []);
+        setOrder(data.data || []);
       })
       .catch((error) => console.error('App Error:', error))
       .finally(() => setLoading(false));
   }, []);
 
-  const filteredPosts = posts.filter((post) => {
+  const filteredPosts = order.filter((post) => {
     const input = searchId.toLowerCase();
     const customerName = post && post.customer && post.customer.name
       ? post.customer.name.toLowerCase()
@@ -155,26 +214,18 @@ const Order = () => {
     );
   });
 
+  // initial state
+  const [items, setItems] = useState([{ item: '', quantity: '1', price: '' }]);
 
-  const handleChangeCalucaltion = (key, value) => {
-    const updatedForm = { ...formData, [key]: value };
-
-    const qty = parseInt(updatedForm.Quantity) || 0;
-    const price = parseInt(updatedForm.Price) || 0;
-    const paid = parseInt(updatedForm['Paid Amount']) || 0;
-    const discount = parseInt(updatedForm['Discount']) || 0;
-
-    // Calculate total
-    const total = qty * price;
-    updatedForm['Total Amount'] = total.toString();
-
-    // Calculate unpaid: total - paid - discount
-    const unpaid = total - paid - discount;
-    updatedForm['Unpaid Amount'] = unpaid.toString();
-
-    setFormData(updatedForm);
+  const handleAddItem = () => {
+    setItems([...items, { item: '', quantity: '1', price: '' }]);
   };
 
+  const handleRemoveItem = (index) => {
+    const updatedItems = [...items];
+    updatedItems.splice(index, 1);
+    setItems(updatedItems);
+  };
 
 
   const paginatedPosts = filteredPosts.slice(0, currentPage * itemsPerPage);
@@ -214,7 +265,7 @@ const Order = () => {
           Delete
         </Icon.Button>
         <Icon.Button
-          name="check"
+          name="pencil"
           backgroundColor="#4CAF50"
           onPress={() => alert('Confirmed')}
           iconStyle={styles.iconStyle}>
@@ -284,10 +335,17 @@ const Order = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalView}>
-            <Text style={styles.modalText}>Add New Order</Text>
-            <ScrollView style={{ maxHeight: 400 }}>
 
-              {/* Customer Name Dropdown */}
+            {/* ❌ Close Button */}
+            <TouchableOpacity onPress={() => setModalVisible(false)} style={{ alignSelf: 'flex-end' }}>
+              <Text style={{ fontSize: 18, color: 'black' }}>✖</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.modalText}>Add New Order</Text>
+
+            <ScrollView style={{ maxHeight: 400 }} keyboardShouldPersistTaps="handled">
+
+              {/* 👤 Customer Picker */}
               <Text style={styles.label}>Select Customer *</Text>
               <Picker
                 selectedValue={formData.Customer}
@@ -296,17 +354,13 @@ const Order = () => {
               >
                 <Picker.Item label="Select Customer..." value="" />
                 {customers.map((customer) => (
-                  <Picker.Item
-                    key={customer.id}
-                    label={customer.name}
-                    value={customer.id}
-                  />
+                  <Picker.Item key={customer.id} label={customer.name} value={customer.id} />
                 ))}
               </Picker>
 
-              {/* Date Picker */}
+              {/* 📅 Date Picker */}
               <Text style={styles.label}>Select Date *</Text>
-              <TouchableOpacity onPress={() => setDatePickerVisible(true)}>
+              <TouchableOpacity onPress={() => setDatePickerVisible(false)}>
                 <TextInput
                   style={styles.inputModal}
                   placeholder="YYYY-MM-DD"
@@ -315,39 +369,58 @@ const Order = () => {
                 />
               </TouchableOpacity>
 
-              {/* Items Dropdown */}
-              <Text style={styles.label}>Select Item *</Text>
-              <Picker
-                selectedValue={formData.Items}
-                onValueChange={(value) => handleChangeCalucaltion('Items', value)}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select Item........." value="" />
-                <Picker.Item label="Jar" value="Jar" />
-                <Picker.Item label="Bottle" value="Bottle" />
-              </Picker>
+              {/* 📦 Items Section */}
+              <Text style={styles.label}>Items *</Text>
+              {items.map((itemObj, index) => (
+                <View key={index} style={{ marginBottom: 10 }}>
+                  <Picker
+                    selectedValue={itemObj.item}
+                    onValueChange={(value) => handleItemChange(index, 'item', value)}
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Select Item" value="" />
+                    <Picker.Item label="Jar" value="Jar" />
+                    <Picker.Item label="Bottle" value="Bottle" />
+                  </Picker>
 
-              {/* Quantity */}
-              <Text style={styles.label}>Quantity *</Text>
-              <TextInput
-                style={styles.inputModal}
-                placeholder="1"
-                value={formData.Quantity}
-                onChangeText={(text) => handleChangeCalucaltion('Quantity', text)}
-                keyboardType="numeric"
-              />
+                  <View style={{ flexDirection: 'row', gap: 5 }}>
+                    <TextInput
+                      style={[styles.inputModalextra, { flex: 1 }]}
+                      placeholder="Qty"
+                      value={itemObj.quantity}
+                      onChangeText={(text) => handleItemChange(index, 'quantity', text)}
+                      keyboardType="numeric"
+                    />
+                    <TextInput
+                      style={[styles.inputModalextra, { flex: 1 }]}
+                      placeholder="25"
+                      value="25"
+                      onChangeText={(text) => handleChangeCalucaltion('Price', text)}
+                      editable={false}
+                    />
+                    {index !== 0 && (
+                      <Icon.Button
+                        name="trash"
+                        color="red"
+                        backgroundColor="white"
+                        style={{ fontSize: 44, marginTop: 10 }}
+                        onPress={() => handleRemoveItem(index)}
+                      />
+                    )}
+                    {index === items.length - 1 && (
+                      <Icon.Button
+                        name="plus"
+                        color="green"
+                        backgroundColor="white"
+                        style={{ fontSize: 74, marginTop: 10 }}
+                        onPress={handleAddItem}
+                      />
+                    )}
+                  </View>
+                </View>
+              ))}
 
-              {/* Price */}
-              <Text style={styles.label}>Price (₹) *</Text>
-              <TextInput
-                style={styles.inputModal}
-                placeholder="25"
-                value={formData.Price}
-                onChangeText={(text) => handleChangeCalucaltion('Price', text)}
-                keyboardType="numeric"
-              />
-
-              {/* Total Amount */}
+              {/* 💰 Total, Paid, Discount, Unpaid */}
               <Text style={styles.label}>Total Amount *</Text>
               <TextInput
                 style={styles.inputModal}
@@ -356,7 +429,6 @@ const Order = () => {
                 editable={false}
               />
 
-              {/* Paid Amount */}
               <Text style={styles.label}>Paid Amount *</Text>
               <TextInput
                 style={styles.inputModal}
@@ -366,7 +438,6 @@ const Order = () => {
                 keyboardType="numeric"
               />
 
-              {/* Discount */}
               <Text style={styles.label}>Discount</Text>
               <TextInput
                 style={styles.inputModal}
@@ -376,7 +447,6 @@ const Order = () => {
                 keyboardType="numeric"
               />
 
-              {/* Unpaid Amount */}
               <Text style={styles.label}>Unpaid Amount</Text>
               <TextInput
                 style={styles.inputModal}
@@ -385,7 +455,7 @@ const Order = () => {
                 editable={false}
               />
 
-              {/* Description */}
+              {/* 📝 Description */}
               <Text style={styles.label}>Description</Text>
               <TextInput
                 style={styles.inputModal}
@@ -395,7 +465,7 @@ const Order = () => {
               />
             </ScrollView>
 
-            {/* Buttons */}
+            {/* 🔘 Buttons */}
             <View style={styles.buttonRow}>
               <TouchableOpacity style={styles.ResetButton} onPress={handleReset}>
                 <Text style={styles.buttonText}>Reset</Text>
@@ -407,12 +477,6 @@ const Order = () => {
           </View>
         </View>
       </Modal>
-
-
-
-
-
-
 
 
     </View>
@@ -507,15 +571,24 @@ const styles = StyleSheet.create({
   modalText: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 15,
+    marginBottom: 19,
     textAlign: 'center',
   },
   inputModal: {
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 6,
+    padding: 13,
+    marginBottom: 14,
+    marginTop: 6,
+  },
+  inputModalextra: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 6,
     padding: 10,
     marginBottom: 10,
+    marginTop: 10,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -570,5 +643,13 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
+  picker: {
+    backgroundColor: '#f0f0f0',
+    color: '#000',
+  },
+  labeldate: {
+    fontWeight: 'bold',
+    marginTop: 10,
+  }
 
 });
