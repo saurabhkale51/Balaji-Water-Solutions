@@ -15,6 +15,7 @@ import { Picker } from '@react-native-picker/picker';
 import { baseUrl } from '../../baseUrl';
 
 
+
 const Order = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [order, setOrder] = useState([]);
@@ -22,56 +23,83 @@ const Order = () => {
   const [searchId, setSearchId] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [customers, setCustomers] = useState([]);
+  const [ itemss , setItemss] = useState([]);
 
   const itemsPerPage = 10;
 
-  const token = '188|UitrKqKR3BWekraCScqaFd6xf1ILMeusDe3ZXr48a354bd26';
+  const token = '193|6Ka40eDonU5Y0BvdpjF0gFuZqNKPaGgOIqUvLRTUe9f9cbe6';
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${baseUrl}/orders`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      setOrder(data.data || []);
+    } catch (error) {
+      console.error('App Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Function to fetch customers
+  const fetchCustomers = async () => {
+    try {
+      const res = await fetch(`${baseUrl}/customers`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      setCustomers(data.data || []);
+    } catch (error) {
+      console.error('Customer Fetch Error:', error);
+    }
+  };
+
+    const fetchItems = async () => {
+    try {
+      const res = await fetch(`${baseUrl}/items`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      setItemss(data.data || []);
+    } catch (error) {
+      console.error('Items Fetch Error:', error);
+    }
+  };
 
   useEffect(() => {
-
-    setLoading(true);
-    fetch(`${baseUrl}/orders`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setOrder(data.data || []);
-      })
-      .catch((error) => console.error('App Error:', error))
-      .finally(() => setLoading(false));
-
-    fetch(`${baseUrl}/customers`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setCustomers(data.data || []);
-      })
-      .catch((error) => console.error('Customer Fetch Error:', error));
+    fetchOrders();
+    fetchCustomers();
+    fetchItems();
   }, []);
 
   const getTodayDate = () => new Date().toISOString().split('T')[0];
 
   const initialFormData = {
     Customer: '',
-    date: '',
+    date: new Date().toISOString().split('T')[0],
     Items: '',
     Quantity: '1',
     Price: '25',
-    'Total Amount': '',
-    'Paid Amount': '',
-    Discount: '',
-    'Unpaid Amount': '',
+    'Total Amount': '0',
+    'Paid Amount': '0',
+    Discount: '0',
+    'Unpaid Amount': '0',
     Description: '',
-    date: new Date().toISOString().split('T')[0],
   };
 
   const [formData, setFormData] = useState(initialFormData);
@@ -94,65 +122,93 @@ const Order = () => {
   };
 
   const handleSubmit = () => {
+    // Validate customer
     if (!formData.Customer) {
       alert('Please select a customer.');
       return;
     }
 
-    const isValidItems = items.every(item => item.item && item.quantity && parseInt(item.quantity) > 0);
+    // Validate items
+    const isValidItems = items.every(
+      item => item.item && item.quantity && parseInt(item.quantity) > 0
+    );
     if (!isValidItems) {
       alert('Please select valid items with quantity.');
       return;
     }
 
-    const formattedItems = items.map((item) => ({
-      item: item.item,
-      quantity: parseInt(item.quantity),
-      price: 25,
-    }));
+const formattedItems = items.map(itemObj => {
+  const foundItem = itemss.find(i => i.name === itemObj.item);
+  return {
+    item_id: foundItem ? foundItem.id : '', 
+    price: 25,
+    quantity: itemObj.quantity ? itemObj.quantity.toString() : "1",
+  };
+});
 
+const bodyData = {
+  customer_id: Number(formData.Customer),
+  discription: formData.Description || '',
+  date: formData.date || getTodayDate(),
+  total_amount: formData['Total Amount'] ? Number(formData['Total Amount']) : 0,
+  paid_amount: formData['Paid Amount'] ? formData['Paid Amount'].toString() : "0",
+  unpaid_amount: formData['Unpaid Amount'] ? Number(formData['Unpaid Amount']) : 0,
+  discount: formData['Discount'] ? formData['Discount'].toString() : "0",
+  status: 'Pending',
+  has_returned: false,
+  returned_items: [],
+  items: formattedItems,
+};
+
+    // const bodyData = {
+    //   customer_id: 44,
+    //   discription: "",
+    //   date: "2025-07-17",
+    //   total_amount: 25,
+    //   paid_amount: "0",
+    //   unpaid_amount: 25,
+    //   discount: "0",
+    //   status: "Pending",
+    //   has_returned: false,
+    //   returned_items: [],
+    //   items: [
+    //     {
+    //       item_id: 2,
+    //       price: 25,
+    //       quantity: "1"
+    //     }
+    //   ]
+    // }
+
+    console.log('Body Data:', bodyData);
+
+    // Make API call
     fetch(`${baseUrl}/orders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        customer: formData.Customer,
-        items: formattedItems,
-        total_amount: formData['Total Amount'],
-        paid_amount: formData['Paid Amount'],
-        discount: formData.Discount,
-        unpaid_amount: formData['Unpaid Amount'],
-        description: formData.Description,
-      }),
+      body: JSON.stringify(bodyData),
     })
-      .then((res) => res.json())
-      .then((data) => {
-        alert('Customer order submitted successfully!');
-        const customerObj = customers.find(
-          (c) => String(c.id) === String(formData.Customer)
-        );
-        const newOrder = {
-          id: data?.data?.id,
-          date: data?.data?.date || new Date().toISOString().split('T')[0],
-          customer: customerObj ? { name: customerObj.name } : { name: '' },
-          total_amount: formData['Total Amount'],
-          paid_amount: formData['Paid Amount'],
-          unpaid_amount: formData['Unpaid Amount'],
-        };
-        setOrder([newOrder, ...order]);
-        setFormData(initialFormData);
-        setItems([{ item: '', quantity: '' }]);
-        setCurrentPage(1);
-        setModalVisible(false);
+      .then(res => res.json())
+      .then(data => {
+        if (data.success || data.status === 'success' || data.message === 'Order created successfully') {
+          alert('Customer order submitted successfully!');
+          fetchOrders();
+          setFormData(initialFormData);
+          setItems([{ item: '', quantity: '' }]);
+          setCurrentPage(1);
+          setModalVisible(false);
+        } else {
+          alert(data.message || 'Failed to submit order!');
+        }
       })
-      .catch((error) => {
+      .catch(error => {
         console.error('Submit Error:', error);
         alert('Something went wrong!');
       });
   };
-
 
   const calculateTotals = (updatedItems = items, form = formData) => {
     let total = 0;
@@ -209,8 +265,7 @@ const Order = () => {
       ? post.customer.name.toLowerCase()
       : '';
     return (
-      post?.id?.toString().includes(input) ||
-      customerName.includes(input)
+       customerName.includes(input)
     );
   });
 
@@ -232,10 +287,10 @@ const Order = () => {
 
   const renderCard = ({ item: post }) => (
     <View style={styles.card}>
-      <View style={styles.row}>
+      {/* <View style={styles.row}>
         <Text style={styles.label}>Order ID: </Text>
         <Text style={styles.description}>{post.id}</Text>
-      </View>
+      </View> */}
       <View style={styles.row}>
         <Text style={styles.label}>Date: </Text>
         <Text style={styles.description}>{post.date || 'N/A'}</Text>
@@ -258,29 +313,32 @@ const Order = () => {
       </View>
       <View style={styles.actions}>
         <Icon.Button
-          name="trash"
-          backgroundColor="#DB4437"
-          onPress={() => alert('Deleted')}
-          iconStyle={styles.iconStyle}>
-          Delete
-        </Icon.Button>
-        <Icon.Button
           name="pencil"
           backgroundColor="#4CAF50"
           onPress={() => alert('Confirmed')}
           iconStyle={styles.iconStyle}>
-          Edit
+        </Icon.Button>
+
+        <Icon.Button
+          name="trash"
+          backgroundColor="#DB4437"
+          onPress={() => alert('Deleted')}
+          iconStyle={styles.iconStyle}>
         </Icon.Button>
       </View>
     </View>
   );
 
+
+
   return (
     <View style={styles.container}>
       <View style={styles.searchContainer}>
+        <Text style={{ fontSize: 25, textAlign: "center", marginBottom: 14, fontWeight: "bold" }}>*** Order List ***</Text>
         <TextInput
           style={styles.input}
-          placeholder="Search by ID or Name..."
+          placeholder="Search by Name..."
+           placeholderTextColor="#888"
           value={searchId}
           onChangeText={(text) => {
             setSearchId(text);
@@ -490,37 +548,47 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 10,
+    backgroundColor: '#e4eef3ff',
   },
   searchContainer: {
     marginBottom: 10,
-    // backgroundColor: '#491919ff',
+    // backgroundColor: '#ffffffff',
     // flexDirection: 'row',
   },
   input: {
     borderWidth: 1,
-    padding: 10,
+    padding: 12,
     marginBottom: 5,
-    borderRadius: 5,
+    borderRadius: 9,
+    backgroundColor: "white",
+    color: '#000',
+    width: '93%',
+    marginLeft: 15,
   },
   buttonContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
+    justifyContent: 'space-around',
   },
   button: {
-    backgroundColor: '#007bff',
+    backgroundColor: '#51ac07ff',
     padding: 10,
     color: 'white',
     borderRadius: 5,
     fontWeight: "bold",
     marginTop: 10,
+    fontSize: 17,
+    paddingHorizontal: 20,
   },
   buttonReset: {
-    backgroundColor: '#3499e6ff',
+    backgroundColor: '#d45353ff',
     padding: 10,
     color: 'white',
     borderRadius: 5,
     fontWeight: "bold",
     marginTop: 10,
+    fontSize: 17,
+    paddingHorizontal: 35,
+    // paddingVertical: 14,
   },
   scrollContainer: {
     paddingBottom: 100,
@@ -550,8 +618,9 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
+    // justifyContent: 'flex-end',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginTop: 15,
   },
   iconStyle: {
     marginRight: 5,
