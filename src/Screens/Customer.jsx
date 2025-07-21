@@ -6,10 +6,11 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
-  Modal
+  Modal,
+  Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { Alert } from 'react-native';
 import { baseUrl } from './baseUrl';
 
 const Customer = () => {
@@ -21,111 +22,147 @@ const Customer = () => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchText, setSearchText] = useState('');
   const [customerData, setCustomerData] = useState([]);
-
   const [currentPage, setCurrentPage] = useState(1);
+
   const itemsPerPage = 10;
 
-  const token = '181|8Cjdie9eq95lFBiD1ODuU3hpG9E4I39woo4RBnPZ6794ab68';
+  const getToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      return token;
+    } catch (e) {
+      console.error('Error getting token:', e);
+      return null;
+    }
+  };
+
+  const fetchCustomers = async () => {
+    const token = await getToken();
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${baseUrl}/customers`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+
+      const json = await response.json();
+      if (json.success) {
+        setCustomerData(json.data);
+      } else {
+        console.error('API error:', json.message);
+      }
+    } catch (error) {
+      console.error('Fetch error:', error);
+    }
+  };
 
   useEffect(() => {
-    fetch(`${baseUrl}/customers`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      }
-    })
-      .then(response => response.json())
-      .then(json => {
-        if (json.success) {
-          setCustomerData(json.data);
-        } else {
-          console.error('API error:', json.message);
-        }
-      })
-      .catch(error => {
-        console.error('Fetch error:', error);
-      });
+    fetchCustomers();
   }, []);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!name || !mobile) {
       alert('Please fill required fields');
       return;
     }
 
+    const token = await getToken();
+    if (!token) return;
+
     const customerPayload = {
-      name: name,
+      name,
       phone: mobile,
-      address: address,
+      address,
     };
 
-    if (editMode && selectedCustomer) {
-      fetch(`${baseUrl}/customers/${selectedCustomer.id}`, {
-        method: 'PUT',
+    const url = editMode && selectedCustomer
+      ? `${baseUrl}/customers/${selectedCustomer.id}`
+      : `${baseUrl}/customers`;
+
+    const method = editMode ? 'PUT' : 'POST';
+
+    try {
+      const response = await fetch(url, {
+        method,
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
         body: JSON.stringify(customerPayload),
-      })
-        .then(async res => {
-          const text = await res.text();
-          const data = text ? JSON.parse(text) : {};
-          if (res.ok) {
-            alert('Customer updated successfully!');
-            setCustomerData(prev =>
-              prev.map(item =>
-                item.id === selectedCustomer.id ? { ...item, ...customerPayload } : item
-              )
-            );
-            setModalVisible(false);
-            setEditMode(false);
-            setSelectedCustomer(null);
-            handleResetForm();
-          } else {
-            alert('Update failed: ' + (data.message || 'Unknown error'));
-          }
-        })
-        .catch(err => {
-          console.error('Update error:', err);
-          alert('Something went wrong while updating the customer.');
-        });
-    } else {
-      fetch('${baseUrl}/customers', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(customerPayload),
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            alert('Customer added successfully!');
-            setCustomerData(prev => [data.data, ...prev]);
-            setModalVisible(false);
-            handleResetForm();
-          } else {
-            alert('Failed: ' + data.message);
-          }
-        })
-        .catch(err => {
-          console.error('POST Error:', err);
-          alert('Something went wrong!');
-        });
+      });
+
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
+
+      if (response.ok) {
+        alert(editMode ? 'Customer updated successfully!' : 'Customer added successfully!');
+        if (editMode) {
+          setCustomerData(prev =>
+            prev.map(item =>
+              item.id === selectedCustomer.id ? { ...item, ...customerPayload } : item
+            )
+          );
+        } else {
+          setCustomerData(prev => [data.data, ...prev]);
+        }
+        setModalVisible(false);
+        setEditMode(false);
+        setSelectedCustomer(null);
+        handleResetForm();
+      } else {
+        alert(`${editMode ? 'Update' : 'Create'} failed: ` + (data.message || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error(`${editMode ? 'Update' : 'POST'} Error:`, err);
+      alert('Something went wrong!');
     }
   };
 
-  const handleResetForm = () => {
-    setName('');
-    setMobile('');
-    setAddress('');
+  const handleDelete = async (id) => {
+    const token = await getToken();
+    if (!token) return;
+
+    Alert.alert(
+      "Confirm Delete",
+      "Are you sure you want to delete this customer?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          onPress: async () => {
+            try {
+              const res = await fetch(`${baseUrl}/customers/${id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Accept': 'application/json',
+                },
+              });
+
+              const text = await res.text();
+              const data = text ? JSON.parse(text) : {};
+
+              if (res.ok) {
+                alert('Customer deleted successfully!');
+                setCustomerData(prev => prev.filter(item => item.id !== id));
+              } else {
+                alert('Delete failed: ' + (data.message || 'Unknown error'));
+              }
+            } catch (err) {
+              console.error('Delete error:', err);
+              alert('Something went wrong while deleting the customer.');
+            }
+          },
+          style: "destructive",
+        }
+      ]
+    );
   };
 
   const handleEdit = (customer) => {
@@ -137,46 +174,10 @@ const Customer = () => {
     setModalVisible(true);
   };
 
-  const handleDelete = (id) => {
-    Alert.alert(
-      "Confirm Delete",
-      "Are you sure you want to delete this customer?",
-      [
-        {
-          text: "Cancel",
-          onPress: () => { },
-          style: "cancel"
-        },
-        {
-          text: "Delete",
-          onPress: () => {
-            fetch(`${baseUrl}/customers/${id}`, {
-              method: 'DELETE',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Accept': 'application/json',
-              },
-            })
-              .then(async (res) => {
-                const text = await res.text();
-                const data = text ? JSON.parse(text) : {};
-
-                if (res.ok) {
-                  alert('Customer deleted successfully!');
-                  setCustomerData(prev => prev.filter(item => item.id !== id));
-                } else {
-                  alert('Delete failed: ' + (data.message || 'Unknown error'));
-                }
-              })
-              .catch((err) => {
-                console.error('Delete error:', err);
-                alert('Something went wrong while deleting the customer.');
-              });
-          },
-          style: "destructive"
-        }
-      ]
-    );
+  const handleResetForm = () => {
+    setName('');
+    setMobile('');
+    setAddress('');
   };
 
   const filteredData = customerData.filter(item => {
@@ -187,12 +188,10 @@ const Customer = () => {
     );
   });
 
-
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const paginatedData = searchText === ''
     ? filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
     : filteredData;
-
 
   return (
     <View style={styles.container}>
@@ -352,8 +351,6 @@ const Customer = () => {
               >
                 <Text style={styles.BtnText}>{editMode ? 'Update' : 'Submit'}</Text>
               </TouchableOpacity>
-
-
             </View>
           </View>
         </View>

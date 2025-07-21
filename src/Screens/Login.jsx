@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import {
   Alert,
   StyleSheet,
@@ -14,13 +16,14 @@ const Login = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter email and password');
-      return;
-    }
+  const handleLogin = async () => {
+  if (!email || !password) {
+    Alert.alert('Error', 'Please enter email and password');
+    return;
+  }
 
-    fetch('https://onlinetradings.in/batla-backend/public/api/auth/login', {
+  try {
+    const response = await fetch('https://onlinetradings.in/batla-backend/public/api/auth/login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -29,26 +32,30 @@ const Login = ({ navigation }) => {
         email: email,
         password: password,
       }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        console.log('Server Response:', data);
+    });
 
-        
-        if (data?.success?.toString() === 'true') {
-          Alert.alert('Success', data.message || 'Login successful');
-          setEmail('');
-          setPassword('');
-          navigation.navigate('MainApp');
-        } else {
-          Alert.alert('Login Failed', data.message || 'Invalid credentials');
-        }
-      })
-      .catch((error) => {
-        console.error('Error:', error);
-        Alert.alert('Error', 'Something went wrong. Try again later.');
-      });
-  };
+    const data = await response.json();
+    console.log('Server Response:', data);
+
+    if (data?.success?.toString() === 'true') {
+      // ✅ Token AsyncStorage मध्ये save करा
+      const token = data.token;
+      await AsyncStorage.setItem('token', token);
+      console.log('Saved Token:', token);
+
+      Alert.alert('Success', data.message || 'Login successful');
+      setEmail('');
+      setPassword('');
+      navigation.navigate('MainApp');
+    } else {
+      Alert.alert('Login Failed', data.message || 'Invalid credentials');
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    Alert.alert('Error', 'Something went wrong. Try again later.');
+  }
+};
+
 
   return (
     <View style={styles.container}>
