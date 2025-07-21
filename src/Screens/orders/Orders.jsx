@@ -13,7 +13,7 @@ import React, { useState, useEffect } from 'react';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { Picker } from '@react-native-picker/picker';
 import { baseUrl } from '../../baseUrl';
-
+import { Alert } from 'react-native';
 
 
 const Order = () => {
@@ -23,9 +23,7 @@ const Order = () => {
   const [searchId, setSearchId] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [customers, setCustomers] = useState([]);
-  const [ itemss , setItemss] = useState([]);
-
-  const itemsPerPage = 10;
+  const [itemss, setItemss] = useState([]);
 
   const token = '193|6Ka40eDonU5Y0BvdpjF0gFuZqNKPaGgOIqUvLRTUe9f9cbe6';
 
@@ -65,7 +63,7 @@ const Order = () => {
     }
   };
 
-    const fetchItems = async () => {
+  const fetchItems = async () => {
     try {
       const res = await fetch(`${baseUrl}/items`, {
         method: 'GET',
@@ -79,6 +77,47 @@ const Order = () => {
     } catch (error) {
       console.error('Items Fetch Error:', error);
     }
+  };
+
+  // Delete Method
+  const handleDeleteOrder = (orderId) => {
+    Alert.alert(
+      'Delete Confirmation',
+      'Are you sure you want to delete this order?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await fetch(`${baseUrl}/orders/${orderId}`, {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+              });
+              let data = {};
+              const text = await res.text();
+              if (text) {
+                data = JSON.parse(text);
+              }
+              if (data.success || data.status === 'success' || data.message === 'Order deleted successfully' || res.status === 200) {
+                Alert.alert('Order deleted!');
+                fetchOrders();
+              } else {
+                Alert.alert(data.message || 'Failed to delete order!');
+              }
+            } catch (error) {
+              Alert.alert('Delete failed!');
+              console.error('Delete Error:', error);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
   useEffect(() => {
@@ -137,28 +176,28 @@ const Order = () => {
       return;
     }
 
-const formattedItems = items.map(itemObj => {
-  const foundItem = itemss.find(i => i.name === itemObj.item);
-  return {
-    item_id: foundItem ? foundItem.id : '', 
-    price: 25,
-    quantity: itemObj.quantity ? itemObj.quantity.toString() : "1",
-  };
-});
+    const formattedItems = items.map(itemObj => {
+      const foundItem = itemss.find(i => i.name === itemObj.item);
+      return {
+        item_id: foundItem ? foundItem.id : '',
+        price: 25,
+        quantity: itemObj.quantity ? itemObj.quantity.toString() : "1",
+      };
+    });
 
-const bodyData = {
-  customer_id: Number(formData.Customer),
-  discription: formData.Description || '',
-  date: formData.date || getTodayDate(),
-  total_amount: formData['Total Amount'] ? Number(formData['Total Amount']) : 0,
-  paid_amount: formData['Paid Amount'] ? formData['Paid Amount'].toString() : "0",
-  unpaid_amount: formData['Unpaid Amount'] ? Number(formData['Unpaid Amount']) : 0,
-  discount: formData['Discount'] ? formData['Discount'].toString() : "0",
-  status: 'Pending',
-  has_returned: false,
-  returned_items: [],
-  items: formattedItems,
-};
+    const bodyData = {
+      customer_id: Number(formData.Customer),
+      discription: formData.Description || '',
+      date: formData.date || getTodayDate(),
+      total_amount: formData['Total Amount'] ? Number(formData['Total Amount']) : 0,
+      paid_amount: formData['Paid Amount'] ? formData['Paid Amount'].toString() : "0",
+      unpaid_amount: formData['Unpaid Amount'] ? Number(formData['Unpaid Amount']) : 0,
+      discount: formData['Discount'] ? formData['Discount'].toString() : "0",
+      status: 'Pending',
+      has_returned: false,
+      returned_items: [],
+      items: formattedItems,
+    };
 
     // const bodyData = {
     //   customer_id: 44,
@@ -259,17 +298,21 @@ const bodyData = {
       .finally(() => setLoading(false));
   }, []);
 
-  const filteredPosts = order.filter((post) => {
-    const input = searchId.toLowerCase();
-    const customerName = post && post.customer && post.customer.name
-      ? post.customer.name.toLowerCase()
-      : '';
-    return (
-       customerName.includes(input)
-    );
-  });
+  // ...existing code...
 
-  // initial state
+  const filteredPosts = Array.isArray(order)
+    ? order.filter((post) => {
+      const input = searchId.toLowerCase();
+      const customerName = post && post.customer && post.customer.name
+        ? post.customer.name.toLowerCase()
+        : '';
+      return customerName.includes(input);
+    })
+    : [];
+
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(filteredPosts.length / itemsPerPage);
+
   const [items, setItems] = useState([{ item: '', quantity: '1', price: '' }]);
 
   const handleAddItem = () => {
@@ -282,8 +325,10 @@ const bodyData = {
     setItems(updatedItems);
   };
 
-
-  const paginatedPosts = filteredPosts.slice(0, currentPage * itemsPerPage);
+  const paginatedPosts = filteredPosts.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const renderCard = ({ item: post }) => (
     <View style={styles.card}>
@@ -322,9 +367,10 @@ const bodyData = {
         <Icon.Button
           name="trash"
           backgroundColor="#DB4437"
-          onPress={() => alert('Deleted')}
+          onPress={() => handleDeleteOrder(post.id)}
           iconStyle={styles.iconStyle}>
         </Icon.Button>
+
       </View>
     </View>
   );
@@ -338,7 +384,7 @@ const bodyData = {
         <TextInput
           style={styles.input}
           placeholder="Search by Name..."
-           placeholderTextColor="#888"
+          placeholderTextColor="#888"
           value={searchId}
           onChangeText={(text) => {
             setSearchId(text);
@@ -364,25 +410,44 @@ const bodyData = {
       {loading ? (
         <ActivityIndicator size="large" color="#0000ff" />
       ) : (
-        <FlatList
-          data={paginatedPosts}
-          keyExtractor={(post, index) =>
-            typeof post?.id === 'number' || typeof post?.id === 'string'
-              ? String(post.id)
-              : `key-${index}`
-          }
-          renderItem={renderCard}
-          contentContainerStyle={styles.scrollContainer}
-          ListFooterComponent={
-            paginatedPosts.length < filteredPosts.length && (
-              <TouchableOpacity
-                style={styles.loadMoreButton}
-                onPress={() => setCurrentPage(currentPage + 1)}>
-                <Text style={styles.loadMoreText}>Load More</Text>
-              </TouchableOpacity>
-            )
-          }
-        />
+        <>
+          <FlatList
+            data={paginatedPosts}
+            keyExtractor={(post, index) =>
+              typeof post?.id === 'number' || typeof post?.id === 'string'
+                ? String(post.id)
+                : `key-${index}`
+            }
+            renderItem={renderCard}
+            contentContainerStyle={styles.scrollContainer}
+
+
+            ListFooterComponent={
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginVertical: 16 }}>
+                <TouchableOpacity
+                  style={[styles.loadMoreButton, { opacity: currentPage === 1 ? 0.5 : 1 }]}
+                  disabled={currentPage === 1}
+                  onPress={() => setCurrentPage(currentPage - 1)}
+                >
+                  <Text style={styles.loadMoreText}>Prev</Text>
+                </TouchableOpacity>
+
+                <Text style={{ marginHorizontal: 20, alignSelf: 'center' }}>
+                  Page {currentPage} / {totalPages}
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.loadMoreButton, { opacity: currentPage === totalPages ? 0.5 : 1 }]}
+                  disabled={currentPage === totalPages}
+                  onPress={() => setCurrentPage(currentPage + 1)}
+                >
+                  <Text style={styles.loadMoreText}>Next</Text>
+                </TouchableOpacity>
+              </View>
+            }
+          />
+
+        </>
       )}
 
       <Modal
@@ -703,7 +768,7 @@ const styles = StyleSheet.create({
   },
   loadMoreButton: {
     padding: 10,
-    backgroundColor: '#007bff',
+    backgroundColor: '#133696ff',
     borderRadius: 5,
     marginTop: 10,
     alignItems: 'center',
