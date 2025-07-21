@@ -1,4 +1,3 @@
-// App.js
 import { StyleSheet } from 'react-native';
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
@@ -23,7 +22,11 @@ const MainApp = () => {
       tabBarActiveTintColor: 'orange',
       tabBarInactiveTintColor: 'black',
       tabBarLabelStyle: {
-        fontSize: 19
+        fontSize: 16,
+        fontWeight:'bold'
+      },
+      tabBarStyle:{
+        height:59
       }
     }}>
       <Tab.Screen
@@ -49,14 +52,6 @@ const MainApp = () => {
           ),
         }}
       />
-      {/* <Tab.Screen name='Items'
-        component={Items}
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="box" size={size} color={color} />
-          ),
-        }}
-      /> */}
     </Tab.Navigator>
   )
 }
