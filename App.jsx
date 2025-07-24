@@ -18,7 +18,7 @@ const MainApp = () => {
   return (
     <Tab.Navigator screenOptions={{
       headerShown: false,
-      tabBarActiveTintColor: 'orange',
+      tabBarActiveTintColor: '#17a2b8',
       tabBarInactiveTintColor: 'black',
       tabBarLabelStyle: {
         fontSize: 16,
