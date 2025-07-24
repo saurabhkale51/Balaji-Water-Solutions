@@ -25,6 +25,15 @@ const Order = () => {
   const [customers, setCustomers] = useState([]);
   const [itemss, setItemss] = useState([]);
 
+const [editModalVisible, setEditModalVisible] = useState(false);
+const [editData, setEditData] = useState(null);
+const [updatedData, setUpdatedData] = useState({
+  paid_amount: '',
+  discount: '',
+});
+
+
+
   const token = '193|6Ka40eDonU5Y0BvdpjF0gFuZqNKPaGgOIqUvLRTUe9f9cbe6';
 
   const fetchOrders = async () => {
@@ -103,12 +112,19 @@ const Order = () => {
               if (text) {
                 data = JSON.parse(text);
               }
-              if (data.success || data.status === 'success' || data.message === 'Order deleted successfully' || res.status === 200) {
-                Alert.alert('Order deleted!');
-                fetchOrders();
-              } else {
-                Alert.alert(data.message || 'Failed to delete order!');
-              }
+             if (
+  (data && data.success === true) ||
+  data.status === 'success' ||
+  data.message === 'Order deleted successfully' ||
+  (res && res.status === 200)
+) {
+  Alert.alert('Order deleted!');
+  fetchOrders();
+} else {
+  console.log('Delete failed:', data); // debugging साठी
+  Alert.alert(data?.message || 'Failed to delete order!');
+}
+
             } catch (error) {
               Alert.alert('Delete failed!');
               console.error('Delete Error:', error);
@@ -247,7 +263,53 @@ const Order = () => {
         console.error('Submit Error:', error);
         alert('Something went wrong!');
       });
+      
   };
+
+const openEditModal = (order) => {
+  console.log("Open edit modal clicked", order);
+  setEditData(order);
+  setUpdatedData({
+    paid_amount: (order?.paid_amount ?? '').toString(),
+    discount: (order?.discount ?? '').toString(),
+  });
+  setEditModalVisible(true);
+};
+
+
+const handleEditSubmit = async () => {
+  if (!editData) return;
+
+  try {
+    const response = await fetch(`${baseUrl}/orders/${editData.id}/`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`, // token pass kar
+      },
+      body: JSON.stringify({
+        ...editData,
+        ...updatedData,
+        paid_amount: parseFloat(updatedData.paid_amount),
+        discount: parseFloat(updatedData.discount),
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      Alert.alert('Order updated successfully');
+      setEditModalVisible(false);
+      fetchOrders(); // refresh
+    } else {
+      Alert.alert(data.message || 'Failed to update order');
+    }
+  } catch (error) {
+    Alert.alert('Error updating order:', error.message);
+  }
+};
+
+
 
   const calculateTotals = (updatedItems = items, form = formData) => {
     let total = 0;
@@ -332,10 +394,6 @@ const Order = () => {
 
   const renderCard = ({ item: post }) => (
     <View style={styles.card}>
-      {/* <View style={styles.row}>
-        <Text style={styles.label}>Order ID: </Text>
-        <Text style={styles.description}>{post.id}</Text>
-      </View> */}
       <View style={styles.row}>
         <Text style={styles.label}>Date: </Text>
         <Text style={styles.description}>{post.date || 'N/A'}</Text>
@@ -358,11 +416,12 @@ const Order = () => {
       </View>
       <View style={styles.actions}>
         <Icon.Button
-          name="pencil"
-          backgroundColor="#4CAF50"
-          onPress={() => alert('Confirmed')}
-          iconStyle={styles.iconStyle}>
-        </Icon.Button>
+  name="pencil"
+  backgroundColor="#4CAF50"
+  onPress={() => openEditModal(order)}
+  iconStyle={styles.iconStyle}>
+</Icon.Button>
+
 
         <Icon.Button
           name="trash"
@@ -374,6 +433,52 @@ const Order = () => {
       </View>
     </View>
   );
+
+<Modal 
+ visible={editModalVisible}
+  animationType="slide"
+  transparent={true}>
+
+      <View style={styles.modalContainer}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Edit Order</Text>
+
+          <Text style={styles.label}>Paid Amount</Text>
+          <TextInput
+            value={updatedData.paid_amount}
+            onChangeText={(text) => setUpdatedData({ ...updatedData, paid_amount: text })}
+            style={styles.input}
+            keyboardType="numeric"
+          />
+
+          <Text style={styles.label}>Discount</Text>
+          <TextInput
+            value={updatedData.discount}
+            onChangeText={(text) => setUpdatedData({ ...updatedData, discount: text })}
+            style={styles.input}
+            keyboardType="numeric"
+          />
+
+          <View style={styles.buttonRow}>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => setEditModalVisible(false)}
+            >
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: 'green' }]}
+              onPress={handleEditSubmit}
+            >
+              <Text style={styles.buttonText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+
+
 
 
 
